@@ -3,24 +3,27 @@ using System.Collections;
 
 public class AirplaneController : MonoBehaviour 
 {
+    //set to false for use in other script
+    public bool userControl = true;
+
     //The propellers
-    public GameObject propellerFR;
-    public GameObject propellerFL;
-    public GameObject propellerBL;
-    public GameObject propellerBR;
+    GameObject propellerFR;
+    GameObject propellerFL;
+    GameObject propellerBL;
+    GameObject propellerBR;
 
     //Quadcopter parameters
     [Header("Internal")]
-    public float maxTorque = 1f; //1
+    public float maxTorque = 1f;
     public float throttle;
-    public float moveFactor = 5f; //5
+    public float moveFactor = 5f; 
 
     float maxPropellerForce;
     
     //PID
-    public Vector3 PID_pitch_gains = new Vector3(2,3,2);        //(2, 3, 2)
-    public Vector3 PID_roll_gains = new Vector3(2,0.2f,0.5f);   //(2, 0.2, 0.5)
-    public Vector3 PID_yaw_gains = new Vector3(1,0,0);          //(1, 0, 0)
+    public Vector3 PID_pitch_gains = new Vector3(2,3,2); 
+    public Vector3 PID_roll_gains = new Vector3(2,3,2);   
+    public Vector3 PID_yaw_gains = new Vector3(1,0,0);
 
     public Vector3 PID_altitude_gains = new Vector3(100f,60f,100f);
 
@@ -30,20 +33,21 @@ public class AirplaneController : MonoBehaviour
     //0 -> 360
     public float forceDir;
 
-
     Rigidbody quadcopterRB;
-
 
     //The PID controllers
     private PIDController PID_pitch;
     private PIDController PID_roll;
     private PIDController PID_yaw;
-    private PIDController thrustAltitudePIDController;
+    private PIDController PID_altitude;
 
     //Movement factors
-    float moveForwardBack;
-    float moveLeftRight;
-    float yawDir;
+    [HideInInspector]
+    public float moveForwardBack = 0f;
+    [HideInInspector]
+    public float moveLeftRight = 0f;
+    [HideInInspector]
+    public float yawDir = 0f;
 
     float gravityforce;
 
@@ -63,27 +67,36 @@ public class AirplaneController : MonoBehaviour
         PID_pitch = new PIDController();
         PID_roll = new PIDController();
         PID_yaw = new PIDController();
-        thrustAltitudePIDController = new PIDController();
+        PID_altitude = new PIDController();
 
         gravityforce = 9.81f * 5f /4f;
         throttle = gravityforce;
 
         targetAltitude = transform.position.y ;
         
-        GetComponent<Rigidbody>().drag = dragCoef;
+        quadcopterRB.drag = dragCoef;
 
-        maxPropellerForce = gravityforce * 3f;
+        maxPropellerForce = gravityforce * 5f;
+
+        propellerFR = transform.Find("Motor_FR").gameObject;
+        propellerFL = transform.Find("Motor_FL").gameObject;
+        propellerBL = transform.Find("Motor_BL").gameObject;
+        propellerBR = transform.Find("Motor_BR").gameObject;
     }
 
     void Update(){
-        if(Input.GetKeyUp(KeyCode.UpArrow) || Input.GetKeyUp(KeyCode.DownArrow)){
-            targetAltitude = transform.position.y;
+
+        if (userControl){
+            AddControls();
+            if(Input.GetKeyUp(KeyCode.UpArrow) || Input.GetKeyUp(KeyCode.DownArrow)){
+                targetAltitude = transform.position.y;
+            }
         }
+
     }
 
     void FixedUpdate()
     {
-        AddControls();
 
         AddMotorForce();
 
@@ -96,33 +109,33 @@ public class AirplaneController : MonoBehaviour
 
         if (Input.GetKey(KeyCode.Z))
         {
-            moveForwardBack = 1f;
+            moveForwardBack = 5f;
         }
         if (Input.GetKey(KeyCode.S))
         {
-            moveForwardBack = -1f;
+            moveForwardBack = -5f;
         }
 
         moveLeftRight = 0f;
 
         if (Input.GetKey(KeyCode.Q))
         {
-            moveLeftRight = -1f;
+            moveLeftRight = -5f;
         }
         if (Input.GetKey(KeyCode.D))
         {
-            moveLeftRight = 1f;
+            moveLeftRight = 5f;
         }
 
         yawDir = 0f;
 
         if (Input.GetKey(KeyCode.LeftArrow))
         {
-            yawDir = -1f;
+            yawDir = -5f;
         }
         if (Input.GetKey(KeyCode.RightArrow))
         {
-            yawDir = 1f;
+            yawDir = 5f;
         }
 
         if (Input.GetKey(KeyCode.UpArrow))
@@ -134,8 +147,34 @@ public class AirplaneController : MonoBehaviour
             throttle -= 1f;            
         }
 
-        throttle = Mathf.Clamp(throttle, 0f, gravityforce * 2f );
+        throttle = Mathf.Clamp(throttle, 0f, maxPropellerForce );
         
+    }
+
+    bool diagonalLimitsAreExceed(){
+        Vector3 pointB = transform.position;
+        //difference between propeller gravity center and core gravity center when quadricopter all angles are 0
+        float adjust = 0.125f;
+
+        Vector3 FR_pointA = propellerFR.transform.position - new Vector3(0,adjust,0);
+        Vector3 FR_pointC = new Vector3(FR_pointA.x , pointB.y, FR_pointA.z);
+
+        Vector3 FL_pointA = propellerFL.transform.position - new Vector3(0,adjust,0);
+        Vector3 FL_pointC = new Vector3(FL_pointA.x , pointB.y, FL_pointA.z);
+
+        Vector3 BL_pointA = propellerBL.transform.position - new Vector3(0,adjust,0);
+        Vector3 BL_pointC = new Vector3(BL_pointA.x , pointB.y, BL_pointA.z);
+
+        Vector3 BR_pointA = propellerBR.transform.position - new Vector3(0,adjust,0);
+        Vector3 BR_pointC = new Vector3(BR_pointA.x , pointB.y, BR_pointA.z);
+
+
+        float propellerFR_diago_angle = Vector3.Angle(pointB - FR_pointA, FR_pointC - pointB) - 180;
+        float propellerFL_diago_angle = Vector3.Angle(pointB - FL_pointA, FL_pointC - pointB) - 180;
+        float propellerBL_diago_angle = Vector3.Angle(pointB - BL_pointA, BL_pointC - pointB) - 180;
+        float propellerBR_diago_angle = Vector3.Angle(pointB - BR_pointA, BR_pointC - pointB) - 180;
+
+        return propellerFR_diago_angle > maxAngle || propellerFL_diago_angle > maxAngle || propellerBL_diago_angle > maxAngle || propellerBR_diago_angle > maxAngle || propellerFR_diago_angle < -maxAngle || propellerFL_diago_angle < -maxAngle || propellerBL_diago_angle < -maxAngle || propellerBR_diago_angle < -maxAngle;
     }
 
     void AddMotorForce()
@@ -148,31 +187,31 @@ public class AirplaneController : MonoBehaviour
 
         float altitudeError = GetAltitudeError();
 
-        //Adapt the PID variables to the throttle
-        Vector3 PID_pitch_gains_adapted = throttle > 100f ? PID_pitch_gains * 2f : PID_pitch_gains;
-
         //Get the output from the PID controllers
-        float PID_pitch_output = PID_pitch.GetFactorFromPIDController(PID_pitch_gains_adapted, pitchError);
-        float PID_roll_output = PID_roll.GetFactorFromPIDController(PID_roll_gains, rollError);
-        float PID_altitude_output = thrustAltitudePIDController.GetFactorFromPIDController(PID_altitude_gains, altitudeError);       
+        float PID_pitch_output = PID_pitch.GetFactorFromPIDController(PID_pitch_gains, pitchError, Time.fixedDeltaTime);
+        float PID_roll_output = PID_roll.GetFactorFromPIDController(PID_roll_gains, rollError, Time.fixedDeltaTime);
+        float PID_altitude_output = PID_altitude.GetFactorFromPIDController(PID_altitude_gains, altitudeError, Time.fixedDeltaTime);       
         
         if(!Input.GetKey(KeyCode.UpArrow) && !Input.GetKey(KeyCode.DownArrow)){
             throttle += PID_altitude_output;
         }
 
+        //diagonals angles
+        bool diagoAngleExceed = diagonalLimitsAreExceed();
+
         if(moveForwardBack != 0 ){
-            if(xAngle<maxAngle && xAngle>-maxAngle){
+            if(xAngle<maxAngle && xAngle>-maxAngle && !diagoAngleExceed){
                 PID_pitch_output = 0;
             }
         }
 
         if(moveLeftRight != 0 ){
-            if(zAngle<maxAngle && zAngle>-maxAngle){
+            if(zAngle<maxAngle && zAngle>-maxAngle && !diagoAngleExceed){
                 PID_roll_output = 0;
             }
         }
-
-        throttle = Mathf.Clamp(throttle, 0f, gravityforce * 2f);
+        
+        throttle = Mathf.Clamp(throttle, 0f, maxPropellerForce);
 
         //Calculate the propeller forces
         //FR
@@ -212,7 +251,7 @@ public class AirplaneController : MonoBehaviour
         //Minimize the yaw error (which is already signed):
         float yawError = quadcopterRB.angularVelocity.y;
 
-        float PID_yaw_output = PID_yaw.GetFactorFromPIDController(PID_yaw_gains, yawError);
+        float PID_yaw_output = PID_yaw.GetFactorFromPIDController(PID_yaw_gains, yawError, Time.fixedDeltaTime);
 
         //First we need to add a force (if any)
         quadcopterRB.AddRelativeTorque(transform.up * yawDir * maxTorque * throttle);
@@ -277,6 +316,23 @@ public class AirplaneController : MonoBehaviour
 
     private float GetAltitudeError(){
         return targetAltitude - transform.position.y;
+    }
+
+
+    public bool goToPosition(Vector3 goal){
+        float tol = 0.05f;
+
+        
+        
+        if(goal.y > 0.2){
+            targetAltitude = goal.y;
+        }
+
+        if(Vector3.Distance(goal,transform.position) < tol && Vector3.Distance(goal,transform.position) > -tol ){
+            Debug.Log("Goal reach !!!");
+            return true;
+        }
+        return false;
     }
 
     //Add external forces to the quadcopter, such as wind

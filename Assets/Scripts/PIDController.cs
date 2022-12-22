@@ -17,38 +17,38 @@ public class PIDController
     //Sometimes you have to limit the total sum of all errors used in the I
     private float error_sumMax = 20f;
 
-    public float GetFactorFromPIDController(float error)
+    public float GetFactorFromPIDController(float error, float deltat)
     {
-        float output = CalculatePIDOutput(error);
+        float output = CalculatePIDOutput(error,deltat);
 
         return output;
     }
 
     //Use this when experimenting with PID parameters
-    public float GetFactorFromPIDController(float gain_P, float gain_I, float gain_D, float error)
+    public float GetFactorFromPIDController(float gain_P, float gain_I, float gain_D, float error, float deltat)
     {
         this.gain_P = gain_P;
         this.gain_I = gain_I;
         this.gain_D = gain_D;
 
-        float output = CalculatePIDOutput(error);
+        float output = CalculatePIDOutput(error,deltat);
 
         return output;
     }
 
     //Use this when experimenting with PID parameters and the gains are stored in a Vector3
-    public float GetFactorFromPIDController(Vector3 gains, float error)
+    public float GetFactorFromPIDController(Vector3 gains, float error, float deltat)
     {
         this.gain_P = gains.x;
         this.gain_I = gains.y;
         this.gain_D = gains.z;
 
-        float output = CalculatePIDOutput(error);
+        float output = CalculatePIDOutput(error,deltat);
 
         return output;
     }
 
-    private float CalculatePIDOutput(float error)
+    private float CalculatePIDOutput(float error, float deltatime)
     {
         //The output from PID
         float output = 0f;
@@ -59,7 +59,7 @@ public class PIDController
 
 
         //I
-        error_sum += Time.fixedDeltaTime * error;
+        error_sum += deltatime * error;
 
         //Clamp the sum 
         this.error_sum = Mathf.Clamp(error_sum, -error_sumMax, error_sumMax);
@@ -73,7 +73,7 @@ public class PIDController
 
 
         //D
-        float d_dt_error = (error - error_old) / Time.fixedDeltaTime;
+        float d_dt_error = (error - error_old) / deltatime;
 
         //Save the last errors
         this.error_old_2 = error_old;
