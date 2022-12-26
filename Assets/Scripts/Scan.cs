@@ -6,85 +6,143 @@ public class Scan : MonoBehaviour
 {
     #region Drone Information
         public float speed = 20f;
+        public bool oddDrone;  
+        private bool isAlive = true;
     #endregion Drone Information
 
     #region Swarm Information
-        public Scan otherDrone;
-
         // Used to synchonize drone to wait each other
         private bool reachSyncPosition = false;
+        public Scan otherDrone;
     #endregion Swarm Information
 
     #region Destinations
+        // Station Gameobject and coordonates
         public GameObject stationObject;
-        public GameObject startObject;
-        public GameObject goalObject;
-
         private Vector3 station;
+        
+        // List of setpoints objects
+        public List<GameObject> setpointsObjects = new List<GameObject>();
+        
+        // current start and end setpoint
         private Vector3 start;
-        private Vector3 goal;
-        private Vector3 destination;
+        private Vector3 end;
+
+        // Ending place Gameobject coordonates
+        private Vector3 destination = Vector3.zero;
     #endregion Destinations
 
     #region Others
-        private DroneState currentState = DroneState.MovingToStart;
-        private List<Vector2> disformities = new List<Vector2>();
+        // Height used to detected if the ground has any anomalies, initialized when starting scanning
         private float scanningHeight = 0;
+
+        [SerializeField] private DroneState currentState = DroneState.MovingToStart;
+        [SerializeField] private bool obstacleDetected = false;
     #endregion Others
 
     private enum DroneState
     {
         MovingToStart,
-        MovingToGoal,
+        Scanning,
         MovingBackToStation,
+        BackToStation,
         Finished,
     }
 
     void Start()
     {
         station = stationObject.transform.position;
-        start = startObject.transform.position;
-        goal = goalObject.transform.position;
-        destination = Vector3.zero;
+        InitStartAndEndPoints();
     }
 
     void Update()
     {
-        if (currentState != DroneState.Finished)
+        // No more strips to check
+        if (setpointsObjects.Count == 0 && currentState == DroneState.BackToStation)
         {
+            return;
+        }
 
-            // Update the drone's next destination
+        // Scanning or moving to Strips
+        if (currentState <= DroneState.BackToStation)
+        {
             UpdateDestination();
             
             // Waits the other drone to reach its starting point
-            if (currentState == DroneState.MovingToGoal && !otherDrone.ReachSyncPosition)
+            if (currentState == DroneState.Scanning && !otherDrone.ReachSyncPosition)
+            {
+                return;
+            }
+
+            // waits the other drone to start processing a new strip
+            if (currentState == DroneState.BackToStation && !otherDrone.ReachSyncPosition)
             {
                 return;
             }
 
             MoveTowardDestination();
 
-            if (currentState == DroneState.MovingToGoal)
+            if (currentState == DroneState.Scanning)
             {
                 ScanGround();
             }
         }
         else
         {
-            Debug.Log($"{currentState} {gameObject.name} has detected {disformities.Count} disformities");
-            // UnityEditor.EditorApplication.isPlaying = false;
+            if(currentState == DroneState.BackToStation)
+            {
+                InitStartAndEndPoints();
+                currentState = DroneState.MovingToStart;
+                reachSyncPosition = false;
+            }
         }
-        
+    }
+
+    void InitStartAndEndPoints()
+    {
+        if(setpointsObjects.Count != 0)
+        {
+            Transform[] children = setpointsObjects[0].GetComponentsInChildren<Transform>();
+            if (oddDrone)
+            {
+                start = children[1].transform.position;
+                end = children[2].transform.position;
+            }
+            else
+            {
+                end = children[1].transform.position;
+                start = children[2].transform.position;
+            }
+            setpointsObjects.RemoveAt(0);
+        }
+        else
+        {
+            currentState = DroneState.Finished;            
+        }
     }
 
     void MoveTowardDestination()
     {
-        transform.position = Vector3.MoveTowards(transform.position, destination, Time.deltaTime * speed);
-        if (transform.position == destination)
+        if (!obstacleDetected)
+        {
+            transform.position = Vector3.MoveTowards(transform.position, destination, Time.deltaTime * speed);
+            if (transform.position == destination)
+            {
+                currentState++;
+            }
+        }
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        Debug.Log("Collision");
+        // Collision range with another drone while scanning
+        if(other.gameObject.layer == 6 && currentState == DroneState.Scanning)
         {
             currentState++;
         }
     }
+
 
     void UpdateDestination()
     {
@@ -94,15 +152,16 @@ public class Scan : MonoBehaviour
                 destination = start;
                 break;
             
-            case DroneState.MovingToGoal:
-                destination = goal;
+            case DroneState.Scanning:
+                destination = end;
                 reachSyncPosition = true;
                 break;
 
             case DroneState.MovingBackToStation:
-                reachSyncPosition = false;
+                reachSyncPosition = true;
                 destination = station;
                 break;
+
         }
     }
 
@@ -124,16 +183,15 @@ public class Scan : MonoBehaviour
             
             // Check if the ground is not plain
             float acceptedError = 0.1f;
-            if (Mathf.Abs(hit.distance - scanningHeight) >= acceptedError)
+            obstacleDetected = Mathf.Abs(hit.distance - scanningHeight) >= acceptedError;
+            if (obstacleDetected)
             {
-                // disformities.Add(new Vector2(hit.point.x, hit.point.y));
-                if (!disformities.Contains(new Vector2((int)hit.point.x, (int)hit.point.y)))
-                {
-                    disformities.Add(new Vector2((int)hit.point.x, (int)hit.point.y));
-                }
+                hit.collider.gameObject.SendMessage("OnScan", this, SendMessageOptions.DontRequireReceiver);
             }
         }
     }
+
+    public bool IsAlive => isAlive;
 
     public bool ReachSyncPosition => reachSyncPosition;
 }
