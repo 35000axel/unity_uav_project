@@ -1,11 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 public class Scan : MonoBehaviour
 {
     #region Variables
-        #region Drone Information
+        #region Drone Properties
             // Speed of the drone
             public float speed = 20f;
 
@@ -15,6 +16,10 @@ public class Scan : MonoBehaviour
             // Flag indicating if the drone is alive
             // False would indicate to the other drone it has to do both jobs
             private bool isAlive = true;
+
+            // Drone's Camera
+            public Camera camera;
+
         #endregion Drone Information
 
         #region Swarm Information
@@ -49,23 +54,30 @@ public class Scan : MonoBehaviour
             [SerializeField] private DroneState currentState = DroneState.MovingToStart;
             // Flag indicating if an obstacle has been detected while scanning a strip
             [SerializeField] private bool obstacleDetected = false;
+            
+            // Dictionary to store disformity images
+            Dictionary<Vector3, Texture2D> disformityImages = new Dictionary<Vector3, Texture2D>();
 
-            // Enum representing the possible states of the drone
-            private enum DroneState
-            {
-                MovingToStart,
-                Scanning,
-                MovingBackToStation,
-                BackToStation,
-                Finished,
-            }
+            public Aircraft aircraft; 
         #endregion Others
+        
+        // Enum representing the possible states of the drone
+        private enum DroneState
+        {
+            MovingToStart,
+            Scanning,
+            MovingBackToStation,
+            BackToStation,
+            Finished,
+        }
     #endregion Variables
 
     void Start()
     {
         station = stationObject.transform.position;
         InitStartAndEndPoints();
+
+        camera.transform.rotation = Quaternion.Euler(90.0f, 0.0f, 0.0f);
     }
 
 
@@ -74,6 +86,8 @@ public class Scan : MonoBehaviour
         // No more runways to check - do nothing
         if (setpointsObjects.Count == 0 && currentState == DroneState.BackToStation)
         {
+            StartAircraft();
+            SaveDisformityImages();
             return;
         }
 
@@ -202,14 +216,75 @@ public class Scan : MonoBehaviour
                 scanningHeight = hit.distance;
             }
             
-            // Check if the ground is not plain
-            float acceptedError = 0.1f;
-            obstacleDetected = Mathf.Abs(hit.distance - scanningHeight) >= acceptedError;
+            // Tolerance for ground height variation
+            float acceptedError = 0.05f;
+            // Threshold for identifying obstacles and disformities
+            float heightForDisformities = .15f;
+
+            float detectedObjectHeight = Mathf.Abs(hit.distance - scanningHeight);
+            obstacleDetected = detectedObjectHeight >= acceptedError;
             if (obstacleDetected)
             {
                 hit.collider.gameObject.SendMessage("OnScan", this, SendMessageOptions.DontRequireReceiver);
+                
+                if (detectedObjectHeight <= heightForDisformities)
+                {
+                    if (!disformityImages.ContainsKey(transform.position))
+                    {
+                        // Take a picture of the ground
+                        Texture2D texture = TakeScreenshot();
+
+                        // Add the disformity to the dictionary
+                        disformityImages.Add(transform.position, texture);
+                    }
+                }
             }
         }
+    }
+
+    void SaveDisformityImages()
+    {
+        int i = 0;
+        foreach (KeyValuePair<Vector3, Texture2D> entry in disformityImages)
+        {
+            Vector3 position = entry.Key;
+            Texture2D texture = entry.Value;
+            // Convert the texture to a PNG byte array
+            byte[] bytes = texture.EncodeToPNG();
+            // Save the byte array to a file
+            string fileName = gameObject.name + "_" + i + "_" + position.x + "_" + position.y + "_" + position.z + ".png";
+            string filePath = Path.Combine("Assets/Images/", fileName);
+            File.WriteAllBytes(filePath, bytes);
+            i++;
+            Debug.Log("Image " + i + "/" + disformityImages.Count + " saved!");
+        }
+        disformityImages.Clear();
+    }
+
+    Texture2D TakeScreenshot()
+    {
+        // Set the camera to be active
+        camera.gameObject.SetActive(true);
+        // Create a RenderTexture and set it as the current target
+        RenderTexture rt = new RenderTexture(Screen.width, Screen.height, 24);
+        camera.targetTexture = rt;
+        // Render the current frame
+        camera.Render();
+        // Copy the rendered image to a new Texture2D
+        Texture2D texture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+        RenderTexture.active = rt;
+        texture.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+        // Reset the render target and release the RenderTexture
+        camera.targetTexture = null;
+        RenderTexture.active = null;
+        rt.Release();
+        // Return the captured image as a Texture2D
+        return texture;
+    }
+
+    void StartAircraft()
+    {
+        aircraft.fly();
     }
 
     public bool IsAlive => isAlive;
