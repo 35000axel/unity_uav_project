@@ -18,7 +18,7 @@ public class Scan : MonoBehaviour
             private bool isAlive = true;
 
             // Drone's Camera
-            public Camera camera;
+            public Camera droneCamera;
 
         #endregion Drone Information
 
@@ -77,7 +77,8 @@ public class Scan : MonoBehaviour
         station = stationObject.transform.position;
         InitStartAndEndPoints();
 
-        camera.transform.rotation = Quaternion.Euler(90.0f, 0.0f, 0.0f);
+        droneCamera = GetComponentInChildren<Camera>();
+        droneCamera.transform.rotation = Quaternion.Euler(90.0f, 0.0f, 0.0f);
     }
 
 
@@ -256,26 +257,25 @@ public class Scan : MonoBehaviour
             string filePath = Path.Combine("Assets/Images/", fileName);
             File.WriteAllBytes(filePath, bytes);
             i++;
-            Debug.Log("Image " + i + "/" + disformityImages.Count + " saved!");
         }
         disformityImages.Clear();
     }
 
     Texture2D TakeScreenshot()
     {
-        // Set the camera to be active
-        camera.gameObject.SetActive(true);
+        // Set the droneCamera to be active
+        droneCamera.gameObject.SetActive(true);
         // Create a RenderTexture and set it as the current target
         RenderTexture rt = new RenderTexture(Screen.width, Screen.height, 24);
-        camera.targetTexture = rt;
+        droneCamera.targetTexture = rt;
         // Render the current frame
-        camera.Render();
+        droneCamera.Render();
         // Copy the rendered image to a new Texture2D
         Texture2D texture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
         RenderTexture.active = rt;
         texture.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
         // Reset the render target and release the RenderTexture
-        camera.targetTexture = null;
+        droneCamera.targetTexture = null;
         RenderTexture.active = null;
         rt.Release();
         // Return the captured image as a Texture2D
