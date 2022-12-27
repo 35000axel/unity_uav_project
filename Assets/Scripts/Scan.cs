@@ -4,50 +4,63 @@ using UnityEngine;
 
 public class Scan : MonoBehaviour
 {
-    #region Drone Information
-        public float speed = 20f;
-        public bool oddDrone;  
-        private bool isAlive = true;
-    #endregion Drone Information
+    #region Variables
+        #region Drone Information
+            // Speed of the drone
+            public float speed = 20f;
 
-    #region Swarm Information
-        // Used to synchonize drone to wait each other
-        private bool reachSyncPosition = false;
-        public Scan otherDrone;
-    #endregion Swarm Information
+            // Flag used to chose which side the drone will start to scan
+            public bool oddDrone;
 
-    #region Destinations
-        // Station Gameobject and coordonates
-        public GameObject stationObject;
-        private Vector3 station;
-        
-        // List of setpoints objects
-        public List<GameObject> setpointsObjects = new List<GameObject>();
-        
-        // current start and end setpoint
-        private Vector3 start;
-        private Vector3 end;
+            // Flag indicating if the drone is alive
+            // False would indicate to the other drone it has to do both jobs
+            private bool isAlive = true;
+        #endregion Drone Information
 
-        // Ending place Gameobject coordonates
-        private Vector3 destination = Vector3.zero;
-    #endregion Destinations
+        #region Swarm Information
+            // Flag indicating if the drone has reached the synchronization position to start scanning a runway
+            private bool reachSyncPosition = false;
+            // Reference to the other drone in the swarm
+            public Scan otherDrone;
+        #endregion Swarm Information
 
-    #region Others
-        // Height used to detected if the ground has any anomalies, initialized when starting scanning
-        private float scanningHeight = 0;
+        #region Destinations
+            // GameObject representing the station
+            public GameObject stationObject;
+            // Coordinates of the station
+            private Vector3 station;
+            
+            // List of setpoint objects
+            public List<GameObject> setpointsObjects = new List<GameObject>();
+            
+            // Current start and end setpoint coordinates
+            private Vector3 start;
+            private Vector3 end;
 
-        [SerializeField] private DroneState currentState = DroneState.MovingToStart;
-        [SerializeField] private bool obstacleDetected = false;
-    #endregion Others
+            // Coordinates of the current destination to go to
+            private Vector3 destination = Vector3.zero;
+        #endregion Destinations
 
-    private enum DroneState
-    {
-        MovingToStart,
-        Scanning,
-        MovingBackToStation,
-        BackToStation,
-        Finished,
-    }
+        #region Others
+            // Height used to detect if the ground has any anomalies, initialized when starting scanning
+            private float scanningHeight = 0;
+
+            // The current state of the drone
+            [SerializeField] private DroneState currentState = DroneState.MovingToStart;
+            // Flag indicating if an obstacle has been detected while scanning a strip
+            [SerializeField] private bool obstacleDetected = false;
+
+            // Enum representing the possible states of the drone
+            private enum DroneState
+            {
+                MovingToStart,
+                Scanning,
+                MovingBackToStation,
+                BackToStation,
+                Finished,
+            }
+        #endregion Others
+    #endregion Variables
 
     void Start()
     {
@@ -55,33 +68,35 @@ public class Scan : MonoBehaviour
         InitStartAndEndPoints();
     }
 
+
     void Update()
     {
-        // No more strips to check
+        // No more runways to check - do nothing
         if (setpointsObjects.Count == 0 && currentState == DroneState.BackToStation)
         {
             return;
         }
 
-        // Scanning or moving to Strips
+        // Scanning or moving to runway
         if (currentState <= DroneState.BackToStation)
         {
             UpdateDestination();
             
-            // Waits the other drone to reach its starting point
+            // Waits the other drone to be ready if both are not ready to scan
             if (currentState == DroneState.Scanning && !otherDrone.ReachSyncPosition)
             {
                 return;
             }
 
-            // waits the other drone to start processing a new strip
+            // Waits the other drone to be ready if both are not ready to start a new runway
             if (currentState == DroneState.BackToStation && !otherDrone.ReachSyncPosition)
             {
                 return;
             }
-
+ 
             MoveTowardDestination();
 
+            // Scans the ground if needed
             if (currentState == DroneState.Scanning)
             {
                 ScanGround();
@@ -89,6 +104,7 @@ public class Scan : MonoBehaviour
         }
         else
         {
+            // Inititialize variables to start a new cycle with the next runway
             if(currentState == DroneState.BackToStation)
             {
                 InitStartAndEndPoints();
@@ -97,7 +113,9 @@ public class Scan : MonoBehaviour
             }
         }
     }
-
+    
+    // Initialize the start and end points from the first set of points in the setpointsObjects list and remove them from the list.
+    // If the list is empty before this method is called, set the current state to DroneState.Finished.
     void InitStartAndEndPoints()
     {
         if(setpointsObjects.Count != 0)
@@ -121,6 +139,8 @@ public class Scan : MonoBehaviour
         }
     }
 
+    // Move the drone towards the destination, as long as no obstacle has been detected.
+    // If the drone reaches the destination, increment the current state.
     void MoveTowardDestination()
     {
         if (!obstacleDetected)
@@ -133,17 +153,17 @@ public class Scan : MonoBehaviour
         }
     }
 
+    // Handle collision within the swarm.
+    // If so, increment the current state.    
     void OnTriggerEnter(Collider other)
     {
-        Debug.Log("Collision");
-        // Collision range with another drone while scanning
-        if(other.gameObject.layer == 6 && currentState == DroneState.Scanning)
+        if(other.gameObject.layer == LayerMask.NameToLayer("Drone") && currentState == DroneState.Scanning)
         {
             currentState++;
         }
     }
 
-
+    // Update the destination and synchronization based on the current state of the drone.
     void UpdateDestination()
     {
         switch (currentState)
@@ -165,6 +185,7 @@ public class Scan : MonoBehaviour
         }
     }
 
+    // Scan the ground for obstacles and send a them message if detected.
     void ScanGround()
     {
         Ray ray = new Ray(transform.position, Vector3.down);
@@ -175,7 +196,7 @@ public class Scan : MonoBehaviour
 
         if (Physics.SphereCast(ray, radius, out hit, maxDistance))
         {
-            // Initialize scanning height once
+            // Initialize scanning height only once
             if (scanningHeight == 0f)
             {
                 scanningHeight = hit.distance;
