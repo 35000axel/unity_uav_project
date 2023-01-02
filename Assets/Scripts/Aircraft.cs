@@ -14,7 +14,7 @@ public class Aircraft : MonoBehaviour
         {
             elapsedTime += Time.deltaTime;
 
-            if (elapsedTime < 1.5)
+            if (elapsedTime < 2.5)
             {
                 // move forward only for the first 2 seconds
                 transform.Translate(Vector3.forward * Time.deltaTime * speed);
@@ -23,7 +23,7 @@ public class Aircraft : MonoBehaviour
             {
                 // move both forward and up after 2 seconds
                 transform.Translate(Vector3.forward * Time.deltaTime * speed);
-                transform.Translate(Vector3.up * Time.deltaTime * speed/4);
+                transform.Translate(Vector3.up * Time.deltaTime * speed/5);
             }
         }
     }
