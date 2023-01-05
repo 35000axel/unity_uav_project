@@ -56,8 +56,8 @@ public class Station_Behaviour : MonoBehaviour
         uav2Script.start = children[2].transform.position;
         uav2Script.end = children[1].transform.position;
 
-        uav1Script.speed = 100;
-        uav2Script.speed = 100;
+        uav1Script.speed = 20;
+        uav2Script.speed = 20;
     }
 
     IEnumerator WaitForStart()

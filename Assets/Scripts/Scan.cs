@@ -97,11 +97,9 @@ public class Scan : MonoBehaviour
                 break;
 
             case UavState.Finished:
-                // InitStartAndEndPoints();
-                // currentState = UavState.MovingToSetpoint;
-                // reachSyncPosition = false;
                 break;
         }
+        transform.LookAt(destination);
     }
 
     // Move the uav towards the destination, as long as no obstacle has been detected.
@@ -118,6 +116,7 @@ public class Scan : MonoBehaviour
     // If so, increment the current state.    
     void OnTriggerEnter(Collider other)
     {
+        Debug.Log("Collision");
         if(other.gameObject.layer == LayerMask.NameToLayer("Uav") && currentState == UavState.Scanning)
         {
             currentState++;
