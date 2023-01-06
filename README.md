@@ -11,7 +11,7 @@ Pour ce faire, les drones parcourent la piste de chaque extrémité jusqu'au mil
 Pour commencer à exécuter ce projet, vous devez suivre quelques étapes. Tout d'abord, vous devez avoir Unity installé (version 20.3.4f), et deuxièmement, vous devriez télécharger/cloner le projet. 
 Les assets visuels sont déjà présents dans le projet.
 
-### Présentation
+## Présentation
 
 Pour lancer la simulation, il faudra simplement sélectionner la seule scène présente et lancer la simulation.
 
